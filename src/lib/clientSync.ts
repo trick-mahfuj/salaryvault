@@ -53,11 +53,7 @@ export async function syncPull(): Promise<SyncPayload | null> {
       return null;
     }
     const data = await response.json();
-    if (!data || (!data.settings && !data.data)) {
-      notifyStatus("connected");
-      return null;
-    }
-    _lastSynced = data.timestamp || data.__syncedAt || new Date().toISOString();
+    _lastSynced = data.__syncedAt || new Date().toISOString();
     notifyStatus("connected");
     return {
       settings: data.settings || undefined,
@@ -134,7 +130,7 @@ export function extractSyncSettings(user: {
   pinLock?: boolean;
   pinCode?: string;
   telegram?: { botToken?: string; chatId?: string; enabled?: boolean; notifyLogin?: boolean; notifyFailedLogin?: boolean; notifyPasswordChange?: boolean; notifyLargeExpense?: boolean; notifySettingsChange?: boolean; largeExpenseThreshold?: number };
-  security?: { passwordRotationEnabled?: boolean; rotationIntervalMinutes?: number; sessionTimeoutMinutes?: number; maxLoginAttempts?: number; lockoutDurationMinutes?: number; lastPasswordChange?: string; nextPasswordRotation?: string };
+  security?: { passwordRotationEnabled?: boolean; rotationIntervalMinutes?: number; sessionTimeoutMinutes?: number; maxLoginAttempts?: number; lockoutDurationMinutes?: number; lastPasswordChange?: string; nextPasswordRotation?: string; email?: string; hashedPassword?: string; currentPasswordHash?: string };
 }): Record<string, unknown> {
   return {
     pinEnabled: user.pinLock ?? false,
@@ -155,6 +151,9 @@ export function extractSyncSettings(user: {
     lockoutDuration: user.security?.lockoutDurationMinutes ?? 15,
     lastPasswordChange: user.security?.lastPasswordChange ?? "",
     nextPasswordRotation: user.security?.nextPasswordRotation ?? "",
+    email: user.security?.email ?? "",
+    hashedPassword: user.security?.hashedPassword ?? "",
+    currentPasswordHash: user.security?.currentPasswordHash ?? "",
   };
 }
 
@@ -183,5 +182,8 @@ export function applySyncSettings(
   if (serverSettings.lockoutDuration !== undefined) (merged.security as Record<string, unknown>).lockoutDurationMinutes = serverSettings.lockoutDuration;
   if (serverSettings.lastPasswordChange) (merged.security as Record<string, unknown>).lastPasswordChange = serverSettings.lastPasswordChange;
   if (serverSettings.nextPasswordRotation) (merged.security as Record<string, unknown>).nextPasswordRotation = serverSettings.nextPasswordRotation;
+  if (serverSettings.email) (merged.security as Record<string, unknown>).email = serverSettings.email;
+  if (serverSettings.hashedPassword) (merged.security as Record<string, unknown>).hashedPassword = serverSettings.hashedPassword;
+  if (serverSettings.currentPasswordHash) (merged.security as Record<string, unknown>).currentPasswordHash = serverSettings.currentPasswordHash;
   return merged;
 }

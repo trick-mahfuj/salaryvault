@@ -2,7 +2,8 @@
 
 import { useEffect, useCallback, useState, useRef } from "react";
 import { syncPull, syncPush, getSyncStatus, getLastSynced, onSyncStatusChange, extractSyncSettings } from "@/lib/clientSync";
-import type { SyncStatus, FinancialData } from "@/lib/clientSync";
+import type { SyncStatus } from "@/lib/clientSync";
+import { useSupabaseRealtime } from "./useSupabaseRealtime";
 import { useStore } from "@/store/useStore";
 
 export function useCrossBrowserSync() {
@@ -56,7 +57,7 @@ export function useCrossBrowserSync() {
 
       // Merge financial data from server if available
       if (remote && remote.data) {
-        const financial = remote.data as unknown as FinancialData;
+        const financial = remote.data as unknown as { salaries: Record<string, unknown>[]; expenses: Record<string, unknown>[]; goals: Record<string, unknown>[]; notes: Record<string, unknown>[] };
         const patch: Record<string, unknown> = {};
         if (financial.salaries && Array.isArray(financial.salaries) && financial.salaries.length > 0) {
           patch.salaries = financial.salaries;
@@ -78,6 +79,40 @@ export function useCrossBrowserSync() {
 
     doInitialSync();
   }, []);
+
+  // Realtime subscriptions — auto-sync cross-device changes
+  useSupabaseRealtime(
+    ["salaries", "expenses", "goals", "notes", "security_settings", "telegram_config"],
+    (payload) => {
+      // Pull fresh data from server when any change is detected
+      syncPull().then((remote) => {
+        if (remote && remote.data) {
+          const financial = remote.data as unknown as { salaries: Record<string, unknown>[]; expenses: Record<string, unknown>[]; goals: Record<string, unknown>[]; notes: Record<string, unknown>[] };
+          const patch: Record<string, unknown> = {};
+          if (financial.salaries) patch.salaries = financial.salaries;
+          if (financial.expenses) patch.expenses = financial.expenses;
+          if (financial.goals) patch.goals = financial.goals;
+          if (financial.notes) patch.notes = financial.notes;
+          if (Object.keys(patch).length > 0) {
+            useStore.setState(patch);
+          }
+        }
+        if (remote && remote.settings) {
+          if (remote.settings.telegramBotToken !== undefined) {
+            useStore.setState((state) => ({
+              user: {
+                ...state.user,
+                telegram: {
+                  ...state.user.telegram,
+                  botToken: remote.settings!.telegramBotToken as string,
+                },
+              },
+            }));
+          }
+        }
+      });
+    }
+  );
 
   const pushToServer = useCallback(async () => {
     const payload = extractSyncSettings(user);

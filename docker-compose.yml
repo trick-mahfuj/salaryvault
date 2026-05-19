@@ -17,20 +17,10 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
-    volumes:
-      # Persistent encrypted sync storage (survives container restarts)
-      - mnit-sync-data:/app/.mnit-sync
-    # Security: no privileged mode, read-only rootfs where possible
+    # Security: no privileged mode
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     cap_add:
       - NET_BIND_SERVICE
-
-# --------------------------------------------------
-# Named volumes for persistent data
-# --------------------------------------------------
-volumes:
-  mnit-sync-data:
-    driver: local

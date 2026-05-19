@@ -38,9 +38,6 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/next.config.ts ./
 
-# Create sync storage directory with correct permissions
-RUN mkdir -p .mnit-sync && chown -R nextjs:nodejs .mnit-sync
-
 # Switch to non-root user for security
 USER nextjs
 

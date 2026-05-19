@@ -154,3 +154,20 @@ export function getSessionSecret(): string {
     "mnit-ledger-fallback-secret"
   );
 }
+
+// Save session to Supabase for cross-device sync
+export async function saveSessionToSupabase(token: string, deviceInfo: { device: string; browser: string; ip: string }) {
+  try {
+    const { ensureUser, saveSession } = await import("./db");
+    const userId = await ensureUser();
+    await saveSession({
+      token,
+      user_id: userId,
+      device: deviceInfo.device,
+      browser: deviceInfo.browser,
+      ip: deviceInfo.ip,
+    });
+  } catch {
+    // Non-critical — sessions also stored locally
+  }
+}

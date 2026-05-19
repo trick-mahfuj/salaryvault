@@ -16,7 +16,7 @@ import {
   type TelegramConfig,
 } from "@/types";
 import { generateId } from "@/lib/utils";
-import { hashPassword, comparePassword, generateSessionToken, setAuthCookie, clearAuthCookie, getDefaultCredentials, clearAllAuthCookies } from "@/lib/auth";
+import { hashPassword, comparePassword, generateSessionToken, setAuthCookie, clearAuthCookie, getDefaultCredentials, clearAllAuthCookies, saveSessionToSupabase } from "@/lib/auth";
 import { sendTelegramAlert, formatSecurityAlert } from "@/lib/telegram";
 import { getRealIP } from "@/lib/ip";
 import {
@@ -250,6 +250,24 @@ export const useStore = create<AppState>((set, get) => {
         lockedUntil: load("lockedUntil", 0),
         lastActivity: Date.now(),
       });
+
+      // Pull fresh data from Supabase (fire-and-forget, merges on top of localStorage)
+      setTimeout(async () => {
+        try {
+          const { syncPull } = await import("@/lib/clientSync");
+          const remote = await syncPull();
+          if (!remote?.data) return;
+          const d = remote.data as Record<string, unknown>;
+          const patch: Record<string, unknown> = {};
+          if (Array.isArray(d.salaries) && d.salaries.length > 0) patch.salaries = d.salaries;
+          if (Array.isArray(d.expenses) && d.expenses.length > 0) patch.expenses = d.expenses;
+          if (Array.isArray(d.goals) && d.goals.length > 0) patch.goals = d.goals;
+          if (Array.isArray(d.notes) && d.notes.length > 0) patch.notes = d.notes;
+          if (Object.keys(patch).length > 0) set(patch as Partial<AppState>);
+        } catch {
+          // Supabase pull failed — staying with localStorage is fine
+        }
+      }, 100);
     },
 
     initializeDefaultCredentials: async () => {
@@ -273,6 +291,8 @@ export const useStore = create<AppState>((set, get) => {
       };
       saveToStorage("user", user);
       set({ user, setupRequired: false });
+      // Sync to Supabase
+      syncPush({ settings: extractSyncSettings(user), timestamp: now });
     },
 
     addSalary: (salary) => {
@@ -459,6 +479,9 @@ export const useStore = create<AppState>((set, get) => {
       set({ isAuthenticated: true, sessions, lastActivity: Date.now() });
       saveToStorage("isAuthenticated", true);
 
+      // Save session to Supabase for cross-device sync
+      saveSessionToSupabase(token, info);
+
       // Send Telegram alert on successful login
       sendTelegramEvent("Successful Login", {
         device: info.device, browser: info.browser, ip: info.ip, email: state.user.security.email || "unknown",
@@ -483,6 +506,7 @@ export const useStore = create<AppState>((set, get) => {
           const secure = window.location.protocol === "https:" ? "; Secure" : "";
           document.cookie = `admin_session=${sessionToken}; path=/; max-age=2592000; SameSite=Lax${secure}`;
         }
+        saveSessionToSupabase(sessionToken, getDeviceInfo());
         return true;
       }
 
@@ -506,6 +530,7 @@ export const useStore = create<AppState>((set, get) => {
         setAuthCookie(token);
         set({ isAuthenticated: true, sessions, lastActivity: Date.now() });
         saveToStorage("isAuthenticated", true);
+        saveSessionToSupabase(token, info);
         sendTelegramEvent("Successful Login", {
           device: info.device, browser: info.browser, ip: info.ip, email,
         });
@@ -527,6 +552,7 @@ export const useStore = create<AppState>((set, get) => {
         setAuthCookie(token);
         set({ isAuthenticated: true, sessions, lastActivity: Date.now() });
         saveToStorage("isAuthenticated", true);
+        saveSessionToSupabase(token, info);
         sendTelegramEvent("Successful Login", {
           device: info.device, browser: info.browser, ip: info.ip, email,
         });
@@ -548,7 +574,7 @@ export const useStore = create<AppState>((set, get) => {
       return false;
     },
 
-    logout: () => {
+    logout: async () => {
       const state = get();
       const sessions = state.sessions.map((s) => s.current ? { ...s, current: false } : s);
       saveToStorage("sessions", sessions);
@@ -559,6 +585,14 @@ export const useStore = create<AppState>((set, get) => {
       clearAuthCookie();
       set({ isAuthenticated: false, sessions, lastActivity: 0, activityLogs });
       saveToStorage("isAuthenticated", false);
+      // Mark session inactive in Supabase
+      try {
+        const { invalidateOtherSessions } = await import("@/lib/db");
+        const { ensureUser } = await import("@/lib/db");
+        const userId = await ensureUser();
+        const currentTok = state.sessions.find((s) => s.current)?.id || "";
+        if (currentTok) await invalidateOtherSessions(userId, currentTok);
+      } catch { /* non-critical */ }
     },
 
     updateUser: (data) => {
@@ -609,6 +643,14 @@ export const useStore = create<AppState>((set, get) => {
       const currentSession = state.sessions.find((s) => s.current);
       const sessions = currentSession ? [currentSession] : [];
       saveToStorage("sessions", sessions);
+      // Also invalidate in Supabase
+      try {
+        const { invalidateOtherSessions } = await import("@/lib/db");
+        const { ensureUser } = await import("@/lib/db");
+        const userId = await ensureUser();
+        const token = currentSession?.id || "";
+        if (token) await invalidateOtherSessions(userId, token);
+      } catch { /* non-critical */ }
 
       const log: ActivityLog = { id: generateId(), timestamp: now, action: "Password Rotated", details: `New password set from ${info.device} / ${info.browser}`, type: "security" };
       const activityLogs = [log, ...state.activityLogs].slice(0, 200);
@@ -626,19 +668,34 @@ export const useStore = create<AppState>((set, get) => {
 
     updateLastActivity: () => set({ lastActivity: Date.now() }),
 
-    removeSession: (id) => set((state) => {
+    removeSession: async (id) => {
+      const state = get();
       const sessions = state.sessions.filter((s) => s.id !== id);
       saveToStorage("sessions", sessions);
-      return { sessions };
-    }),
+      set({ sessions });
+      // Also remove from Supabase
+      try {
+        const { removeSession } = await import("@/lib/db");
+        const { ensureUser } = await import("@/lib/db");
+        const userId = await ensureUser();
+        await removeSession(userId, id);
+      } catch { /* non-critical */ }
+    },
 
-    clearAllSessions: () => {
+    clearAllSessions: async () => {
       const info = getDeviceInfo();
       const token = generateSessionToken();
       const session: Session = { id: token, ...info, createdAt: new Date().toISOString(), lastActive: new Date().toISOString(), current: true };
       saveToStorage("sessions", [session]);
       setAuthCookie(token);
       set({ sessions: [session] });
+      // Also clear in Supabase
+      try {
+        const { clearAllSessions } = await import("@/lib/db");
+        const { ensureUser } = await import("@/lib/db");
+        const userId = await ensureUser();
+        await clearAllSessions(userId);
+      } catch { /* non-critical */ }
     },
 
     setTelegramConfig: (config) => set((state) => {
