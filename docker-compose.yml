@@ -1,5 +1,5 @@
 # =============================================
-# Docker Compose — MNIT Work Ledger
+# Docker Compose — MNIT Work Ledger (Production)
 # =============================================
 services:
   # --------------------------------------------------
@@ -10,7 +10,27 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     restart: unless-stopped
     env_file:
       - .env.local
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    volumes:
+      # Persistent encrypted sync storage (survives container restarts)
+      - mnit-sync-data:/app/.mnit-sync
+    # Security: no privileged mode, read-only rootfs where possible
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+# --------------------------------------------------
+# Named volumes for persistent data
+# --------------------------------------------------
+volumes:
+  mnit-sync-data:
+    driver: local

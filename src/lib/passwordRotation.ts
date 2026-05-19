@@ -63,7 +63,8 @@ export function formatTimeDisplay(ms: number): string {
 export function formatPasswordRotationTelegram(
   newPassword: string,
   oldTimestamp: string,
-  success: boolean
+  success: boolean,
+  deviceInfo?: string
 ): string {
   const time = new Date().toLocaleString("en-US", {
     timeZone: "Asia/Dhaka",
@@ -79,7 +80,7 @@ export function formatPasswordRotationTelegram(
     ``,
     `<b>Time:</b> ${time}`,
     `<b>Previous Rotation:</b> ${new Date(oldTimestamp).toLocaleString("en-US", { timeZone: "Asia/Dhaka", dateStyle: "full", timeStyle: "medium" })}`,
-    `<b>Device:</b> Local Server`,
+    `<b>Device:</b> ${deviceInfo || "Unknown"}`,
     `<b>Security Status:</b> ${success ? "Rotation Successful ✅" : "Rotation Failed ❌"}`,
     ``,
     `<b>⚠️ IMPORTANT:</b> This password will be valid until the next rotation.`,

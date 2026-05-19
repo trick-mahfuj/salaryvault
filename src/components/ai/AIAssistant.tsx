@@ -914,7 +914,9 @@ export default function AIAssistant() {
       <motion.button
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed bottom-28 right-4 z-50 flex items-center justify-center w-14 h-14 rounded-full shadow-lg",
+          "fixed z-50 flex items-center justify-center w-14 h-14 rounded-full shadow-lg",
+          "bottom-4 right-4 sm:bottom-28",
+          "pb-[env(safe-area-inset-bottom,0px)]",
           "bg-gradient-to-br from-indigo-600 to-purple-600 text-white",
           "hover:shadow-indigo-500/30 hover:scale-105 transition-all"
         )}
@@ -942,9 +944,13 @@ export default function AIAssistant() {
             exit={{ opacity: 0, y: 24, scale: 0.95 }}
             transition={{ type: "spring", duration: 0.4, bounce: 0.2 }}
             className={cn(
-              "fixed bottom-40 right-4 z-50 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-12rem)]",
-              "rounded-2xl shadow-2xl flex flex-col overflow-hidden",
-              "bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl border border-white/20 dark:border-gray-700/30"
+              "fixed z-50 flex flex-col overflow-hidden",
+              "bottom-0 right-0 sm:bottom-40 sm:right-4",
+              "w-full sm:w-[400px] sm:max-w-[calc(100vw-2rem)]",
+              "h-[100dvh] sm:h-[600px] sm:max-h-[calc(100vh-12rem)]",
+              "rounded-none sm:rounded-2xl shadow-2xl",
+              "bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl border border-white/20 dark:border-gray-700/30",
+              "pb-[env(safe-area-inset-bottom,0px)]"
             )}
           >
             {/* Header */}
@@ -1089,7 +1095,7 @@ export default function AIAssistant() {
             <div className="px-4 pb-4 shrink-0">
               <form
                 onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
-                className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/60 rounded-2xl px-4 py-2.5 border border-gray-200/50 dark:border-gray-700/20 focus-within:ring-2 focus-within:ring-indigo-500/30 transition-all"
+                className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/60 rounded-2xl px-4 py-2.5 border border-gray-200/50 dark:border-gray-700/20 focus-within:ring-2 focus-within:ring-indigo-500/30 transition-all touch-manipulation"
               >
                 <input
                   ref={inputRef}
@@ -1098,12 +1104,15 @@ export default function AIAssistant() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="যেকোনো প্রশ্ন বা লেনদেন... (বাংলা/English)"
                   disabled={loading}
-                  className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                  enterKeyHint="send"
+                  inputMode="text"
+                  autoComplete="off"
+                  className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 min-h-[44px]"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || loading}
-                  className="p-2 rounded-xl bg-indigo-600 text-white disabled:opacity-40 hover:bg-indigo-700 transition-colors shadow-sm"
+                  className="p-3 rounded-xl bg-indigo-600 text-white disabled:opacity-40 hover:bg-indigo-700 transition-colors shadow-sm min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation active:scale-95"
                 >
                   <Send className="w-4 h-4" />
                 </button>

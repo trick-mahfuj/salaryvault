@@ -29,7 +29,8 @@ export function generateSessionToken(): string {
 
 export function setAuthCookie(token: string): void {
   if (typeof document === "undefined") return;
-  document.cookie = `admin_session=${token}; path=/; max-age=86400; SameSite=Strict`;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `admin_session=${token}; path=/; max-age=86400; SameSite=Strict${secure}`;
 }
 
 export function clearAuthCookie(): void {

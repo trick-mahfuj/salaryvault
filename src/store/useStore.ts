@@ -92,11 +92,28 @@ const saveToStorage = (key: string, value: unknown) => {
 };
 
 function getDeviceInfo() {
-  if (typeof window === "undefined") return { device: "Unknown", browser: "Unknown", ip: "Unknown IP" };
+  if (typeof window === "undefined") return { device: "Server", browser: "Node.js", ip: "Unknown IP" };
   const ua = navigator.userAgent;
-  const isMobile = /Mobile|Android|iPhone|iPad/i.test(ua);
-  const browser = ua.includes("Chrome") ? "Chrome" : ua.includes("Firefox") ? "Firefox" : ua.includes("Safari") ? "Safari" : ua.includes("Edg") ? "Edge" : "Other";
-  return { device: isMobile ? "Mobile" : "Desktop", browser, ip: getRealIP() };
+  const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
+  const isTablet = /iPad|Android(?!.*Mobile)/i.test(ua);
+  const os = ua.includes("Windows NT") ? "Windows"
+    : ua.includes("Mac OS") ? "macOS"
+    : ua.includes("Linux") ? "Linux"
+    : ua.includes("Android") ? "Android"
+    : ua.includes("iPhone") || ua.includes("iPad") ? "iOS"
+    : "Unknown OS";
+  const browser = ua.includes("Chrome") && !ua.includes("Edg") ? "Chrome"
+    : ua.includes("Firefox") ? "Firefox"
+    : ua.includes("Safari") && !ua.includes("Chrome") ? "Safari"
+    : ua.includes("Edg") ? "Edge"
+    : "Other";
+  const device = isTablet ? "Tablet"
+    : isMobile ? "Mobile"
+    : "Desktop";
+  const productionLabel = device === "Mobile"
+    ? `${os} ${browser}`
+    : `Desktop ${browser}`;
+  return { device: productionLabel, browser, ip: getRealIP() };
 }
 
 function generatePassword(): string {
@@ -420,17 +437,11 @@ export const useStore = create<AppState>((set, get) => {
         return false;
       }
 
-      // DEV LOG: Auth source info
-      const envCreds = getDefaultCredentials();
       const storedEmail = state.user.security.email;
       const storedHash = state.user.security.hashedPassword;
-      console.log("[AUTH] Login attempt:", email);
-      console.log("[AUTH] Stored email:", storedEmail);
-      console.log("[AUTH] Stored hash exists:", !!storedHash);
-      console.log("[AUTH] Env email:", envCreds.email);
 
-      // Helper to complete a successful login (inline to avoid interface changes)
-      const completeLogin = (userOverride?: UserProfile) => {
+      // Helper to complete a successful login
+      const completeLogin = () => {
         const s = get();
         s.addLoginAttempt(true);
         const info = getDeviceInfo();
@@ -439,12 +450,7 @@ export const useStore = create<AppState>((set, get) => {
         const sessions = [session, ...s.sessions].slice(0, 20);
         saveToStorage("sessions", sessions);
         setAuthCookie(token);
-        if (userOverride) {
-          saveToStorage("user", userOverride);
-          set({ user: userOverride, isAuthenticated: true, sessions, lastActivity: Date.now() });
-        } else {
-          set({ isAuthenticated: true, sessions, lastActivity: Date.now() });
-        }
+        set({ isAuthenticated: true, sessions, lastActivity: Date.now() });
         saveToStorage("isAuthenticated", true);
         sendTelegramEvent("Successful Login", {
           device: info.device, browser: info.browser, ip: info.ip, email,
@@ -452,39 +458,17 @@ export const useStore = create<AppState>((set, get) => {
         return true;
       };
 
-      // Try stored credentials first
+      // ONLY validate against stored hashed credentials
       if (email === storedEmail && storedHash) {
         const valid = await comparePassword(password, storedHash);
         if (valid) {
           console.log("[AUTH] Login SUCCESS via stored credentials");
           return completeLogin();
         }
-        console.log("[AUTH] Stored credentials failed comparison");
       }
 
-      // Fallback: try env-based credentials
-      if (email === envCreds.email && password === envCreds.password) {
-        console.log("[AUTH] Login SUCCESS via env credentials — migrating to localStorage");
-        const hashedPwd = await hashPassword(envCreds.password);
-        const now = new Date().toISOString();
-        const migratedSecurity: SecuritySettings = {
-          ...state.user.security,
-          email: envCreds.email,
-          hashedPassword: hashedPwd,
-          currentPasswordHash: hashedPwd,
-          lastPasswordChange: now,
-          nextPasswordRotation: new Date(Date.now() + 3600000).toISOString(),
-        };
-        const migratedUser: UserProfile = {
-          ...state.user,
-          email: envCreds.email,
-          security: migratedSecurity,
-        };
-        return completeLogin(migratedUser);
-      }
-
-      // Both failed
-      console.log("[AUTH] Login FAILED — all credential sources exhausted");
+      // All auth sources exhausted — record failure
+      console.log("[AUTH] Login FAILED — stored credentials rejected");
       get().addLoginAttempt(false);
       return false;
     },
@@ -526,25 +510,33 @@ export const useStore = create<AppState>((set, get) => {
       const state = get();
       const newPassword = generatePassword();
       const newHash = await hashPassword(newPassword);
+      const info = getDeviceInfo();
+      const now = new Date().toISOString();
       const user = {
         ...state.user,
         security: {
           ...state.user.security,
           hashedPassword: newHash,
           currentPasswordHash: newHash,
-          lastPasswordChange: new Date().toISOString(),
+          lastPasswordChange: now,
           nextPasswordRotation: new Date(Date.now() + (state.user.security.rotationIntervalMinutes || 60) * 60000).toISOString(),
         },
       };
       saveToStorage("user", user);
-      const log: ActivityLog = { id: generateId(), timestamp: new Date().toISOString(), action: "Password Rotated", details: "Auto password rotation completed", type: "security" };
+
+      // Invalidate all sessions except current (forces re-login with new password)
+      const currentSession = state.sessions.find((s) => s.current);
+      const sessions = currentSession ? [currentSession] : [];
+      saveToStorage("sessions", sessions);
+
+      const log: ActivityLog = { id: generateId(), timestamp: now, action: "Password Rotated", details: `New password set from ${info.device} / ${info.browser}`, type: "security" };
       const activityLogs = [log, ...state.activityLogs].slice(0, 200);
       saveToStorage("activityLogs", activityLogs);
-      set({ user, activityLogs });
+      set({ user, sessions, activityLogs });
 
-      // Send Telegram alert on password rotation with the new password
+      // Send Telegram alert with actual device info
       sendTelegramEvent("Password Rotated", {
-        device: "System", browser: "Auto-Rotation", ip: "127.0.0.1",
+        device: info.device, browser: info.browser, ip: info.ip,
         newPassword,
       });
 

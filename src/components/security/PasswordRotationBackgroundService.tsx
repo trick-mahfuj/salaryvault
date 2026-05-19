@@ -10,11 +10,30 @@ import {
   addRotationLog,
 } from "@/lib/passwordRotation";
 import { hashPassword } from "@/lib/auth";
+import { getRealIP } from "@/lib/ip";
 
 export function PasswordRotationBackgroundService() {
   const { user, setSecuritySettings } = useStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const rotatingRef = useRef(false);
+
+  function getDeviceLabel(): string {
+    if (typeof window === "undefined") return "Server (Auto-Rotation)";
+    const ua = navigator.userAgent;
+    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
+    const browser = ua.includes("Chrome") && !ua.includes("Edg") ? "Chrome"
+      : ua.includes("Firefox") ? "Firefox"
+      : ua.includes("Safari") && !ua.includes("Chrome") ? "Safari"
+      : ua.includes("Edg") ? "Edge"
+      : "Other";
+    const os = ua.includes("Windows NT") ? "Windows"
+      : ua.includes("Mac OS") ? "macOS"
+      : ua.includes("Linux") ? "Linux"
+      : ua.includes("Android") ? "Android"
+      : ua.includes("iPhone") || ua.includes("iPad") ? "iOS"
+      : "Unknown OS";
+    return isMobile ? `${os} ${browser} (Auto-Rotation)` : `Desktop ${browser} (Auto-Rotation)`;
+  }
 
   useEffect(() => {
     const { passwordRotationEnabled, rotationIntervalMinutes, nextPasswordRotation } = user.security;
@@ -51,7 +70,7 @@ export function PasswordRotationBackgroundService() {
         let telegramDelivered = false;
         let retries = 0;
         if (telegram.enabled && telegram.botToken && telegram.chatId) {
-          const message = formatPasswordRotationTelegram(newPassword, oldTimestamp, true);
+          const message = formatPasswordRotationTelegram(newPassword, oldTimestamp, true, getDeviceLabel());
           for (let i = 0; i < 3; i++) {
             const sent = await sendTelegramAlert(message, telegram.botToken, telegram.chatId);
             if (sent) {
