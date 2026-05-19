@@ -11,9 +11,10 @@ import { downloadCSV, formatDateTime } from "@/lib/utils";
 import { getRotationHistory } from "@/lib/passwordRotation";
 import { getRealIP, getBrowserInfo } from "@/lib/ip";
 import { hashPin } from "@/lib/persistentStorage";
+import { useCrossBrowserSync } from "@/hooks/useCrossBrowserSync";
 import {
   Sun, Moon, Lock, Unlock, Download, Shield, User, Bell, Database, LogOut,
-  Smartphone, Globe, RefreshCw, MessageSquare, RotateCcw, AlertTriangle,
+  Smartphone, Globe, RefreshCw, MessageSquare, RotateCcw, AlertTriangle, Server, CheckCircle2, XCircle,
 } from "lucide-react";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } } as const;
@@ -39,6 +40,8 @@ export default function SettingsPage() {
   const [maxAttempts, setMaxAttempts] = useState(String(user.security.maxLoginAttempts));
   const [lockoutMin] = useState(String(user.security.lockoutDurationMinutes));
   const [rotationInterval, setRotationInterval] = useState(String(user.security.rotationIntervalMinutes));
+
+  const { syncStatus, lastSynced, persistentActive, pushToServer } = useCrossBrowserSync();
 
   const handleSaveProfile = () => {
     updateUser({ name, email, company, monthlySalaryGoal: parseFloat(monthlyGoal) || 0 });
@@ -261,6 +264,56 @@ export default function SettingsPage() {
               >
                 Send Test Alert
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Persistent Sync */}
+      <motion.div variants={item}>
+        <Card>
+          <CardHeader><CardTitle className="text-sm font-medium flex items-center gap-2"><Server className="w-4 h-4" /> Persistent Sync</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Settings are synchronized across browsers and sessions via encrypted server-side storage.
+              Bot Token, Chat ID, PIN, rotation, and session settings persist on the server.
+            </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Badge variant={persistentActive ? "success" : "danger"} className="text-[10px]">
+                  {persistentActive ? "Connected" : "Disconnected"}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {syncStatus === "syncing" ? "Syncing..." : persistentActive ? "Active" : "Standby"}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => pushToServer()}
+                disabled={syncStatus === "syncing"}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1 ${syncStatus === "syncing" ? "animate-spin" : ""}`} />
+                Sync Now
+              </Button>
+            </div>
+            {lastSynced && (
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                Last synced: {formatDateTime(lastSynced)}
+              </div>
+            )}
+            {!persistentActive && (
+              <div className="flex items-center gap-2 text-[10px] text-warning">
+                <XCircle className="w-3 h-3" />
+                Server sync unavailable. Settings are stored locally only.
+              </div>
+            )}
+            <div className="p-3 rounded-xl bg-secondary/30 border border-border/50">
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <Shield className="w-3 h-3" />
+                <span>Encrypted AES-256-CBC &middot; Signed &middot; Server-backed</span>
+              </div>
             </div>
           </CardContent>
         </Card>

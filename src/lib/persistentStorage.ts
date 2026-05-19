@@ -60,6 +60,9 @@ export const CRITICAL_KEYS = {
   ROTATION_ENABLED: "mnit-rotation-enabled",
   ROTATION_INTERVAL: "mnit-rotation-interval",
   SESSION_TIMEOUT: "mnit-session-timeout",
+  SYNC_LAST_SYNCED: "mnit-sync-last-synced",
+  SYNC_STATUS: "mnit-sync-status",
+  SYNC_ENCRYPTED_BACKUP: "mnit-sync-encrypted-backup",
 } as const;
 
 // Simple hash function for PIN (not bcrypt — synchronous for speed)
@@ -137,4 +140,30 @@ export function loadCriticalSettings(): Partial<{
   if (sessTimeout !== null) result.sessionTimeout = parseInt(sessTimeout, 10) || 30;
 
   return result;
+}
+
+// --- Sync metadata helpers ---
+
+export function getSyncLastSynced(): string | null {
+  return getPersistentItem(CRITICAL_KEYS.SYNC_LAST_SYNCED, false);
+}
+
+export function setSyncLastSynced(timestamp: string): void {
+  setPersistentItem(CRITICAL_KEYS.SYNC_LAST_SYNCED, timestamp, false);
+}
+
+export function getSyncStatus(): string | null {
+  return getPersistentItem(CRITICAL_KEYS.SYNC_STATUS, false);
+}
+
+export function setSyncStatus(status: string): void {
+  setPersistentItem(CRITICAL_KEYS.SYNC_STATUS, status, false);
+}
+
+export function storeEncryptedBackup(encryptedData: string): void {
+  setPersistentItem(CRITICAL_KEYS.SYNC_ENCRYPTED_BACKUP, encryptedData, true);
+}
+
+export function getEncryptedBackup(): string | null {
+  return getPersistentItem(CRITICAL_KEYS.SYNC_ENCRYPTED_BACKUP, true);
 }

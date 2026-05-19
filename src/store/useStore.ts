@@ -22,6 +22,7 @@ import { getRealIP } from "@/lib/ip";
 import {
   syncCriticalSettings, loadCriticalSettings, verifyPin,
 } from "@/lib/persistentStorage";
+import { syncPush, extractSyncSettings } from "@/lib/clientSync";
 
 interface AppState {
   hydrated: boolean;
@@ -509,6 +510,7 @@ export const useStore = create<AppState>((set, get) => {
         saveToStorage("user", user);
         if (data.pinLock !== undefined || data.pinCode !== undefined || data.security || data.telegram) {
           syncCriticalSettingsFromUser(user);
+          syncPush({ settings: extractSyncSettings(user), timestamp: new Date().toISOString() });
         }
         return { user };
       });
@@ -571,6 +573,7 @@ export const useStore = create<AppState>((set, get) => {
       const user = { ...state.user, telegram };
       saveToStorage("user", user);
       syncCriticalSettingsFromUser(user);
+      syncPush({ settings: extractSyncSettings(user), timestamp: new Date().toISOString() });
       return { user };
     }),
 
@@ -579,6 +582,7 @@ export const useStore = create<AppState>((set, get) => {
       const user = { ...state.user, security };
       saveToStorage("user", user);
       syncCriticalSettingsFromUser(user);
+      syncPush({ settings: extractSyncSettings(user), timestamp: new Date().toISOString() });
       return { user };
     }),
 

@@ -10,6 +10,7 @@ import { FAB } from "@/components/layout/FAB";
 import { hasStoredCredentials } from "@/lib/auth";
 import AIAssistant from "@/components/ai/AIAssistant";
 import { PasswordRotationBackgroundService } from "@/components/security/PasswordRotationBackgroundService";
+import { CrossBrowserSyncService } from "@/components/security/CrossBrowserSyncService";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <FAB />
       <AIAssistant />
       <PasswordRotationBackgroundService />
+      <CrossBrowserSyncService />
       <main className="lg:pl-[260px] min-h-screen transition-all duration-300 pb-20 lg:pb-8">
         <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pt-16 lg:pt-8">
           {children}
