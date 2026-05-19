@@ -709,15 +709,12 @@ export default function AIAssistant() {
   const language = useMemo(() => detectUserLanguage(memory), [memory]);
   const snapshot = useDailySnapshot();
 
-  // Show welcome only once per day — removes condition so it shows on first open each day
+  // Show welcome: when no messages exist (fresh state) OR first visit today
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
-  const showWelcome = lastWelcomeDate !== today;
+  const showWelcome = storeMessages.length === 0 || lastWelcomeDate !== today;
 
-  // Mark welcome as shown immediately to prevent re-showing on re-render
-  const welcomeEffectRan = useRef(false);
   useEffect(() => {
-    if (showWelcome && !welcomeEffectRan.current) {
-      welcomeEffectRan.current = true;
+    if (showWelcome) {
       setLastWelcomeDate(today);
       setWelcomeShown(true);
     }
@@ -1017,25 +1014,24 @@ export default function AIAssistant() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
-              {showWelcome ? (
+              {showWelcome && (
                 <WelcomeCard
                   language={language}
                   snapshot={snapshot}
                   onQuickAction={handleSend}
                 />
-              ) : (
-                storeMessages.map((msg, i) => (
-                  !msg.text.includes("I detected a transaction") ? (
-                    <MessageGroup
-                      key={msg.id || i}
-                      msg={msg}
-                      isLast={i === storeMessages.length - 1}
-                      pendingTx={pendingTx}
-                      onSend={handleSend}
-                    />
-                  ) : null
-                ))
               )}
+              {storeMessages.map((msg, i) => (
+                !msg.text.includes("I detected a transaction") ? (
+                  <MessageGroup
+                    key={msg.id || i}
+                    msg={msg}
+                    isLast={i === storeMessages.length - 1}
+                    pendingTx={pendingTx}
+                    onSend={handleSend}
+                  />
+                ) : null
+              ))}
 
               {/* Confirmation modal */}
               {pendingTx && (
