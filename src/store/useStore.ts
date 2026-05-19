@@ -117,7 +117,8 @@ function getDeviceInfo() {
 }
 
 function generatePassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
+  // Safe chars: A-Z, a-z, 0-9, @, _, *
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@_*";
   let pwd = "";
   for (let i = 0; i < 16; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length));
   return pwd;

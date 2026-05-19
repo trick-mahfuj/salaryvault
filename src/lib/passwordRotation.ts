@@ -3,7 +3,7 @@
 const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const LOWER = "abcdefghjkmnpqrstuvwxyz";
 const DIGITS = "23456789";
-const SYMBOLS = "!@#$%&*";
+const SYMBOLS = "@_*";
 
 function secureRandom(arr: string): string {
   const idx = Math.floor(Math.random() * arr.length);
