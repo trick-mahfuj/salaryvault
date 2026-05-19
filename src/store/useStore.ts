@@ -22,7 +22,7 @@ import { getRealIP } from "@/lib/ip";
 import {
   syncCriticalSettings, loadCriticalSettings, verifyPin,
 } from "@/lib/persistentStorage";
-import { syncPush, extractSyncSettings } from "@/lib/clientSync";
+import { syncPush, extractSyncSettings, scheduleSyncData } from "@/lib/clientSync";
 
 interface AppState {
   hydrated: boolean;
@@ -275,92 +275,128 @@ export const useStore = create<AppState>((set, get) => {
       set({ user, setupRequired: false });
     },
 
-    addSalary: (salary) => set((state) => {
-      const newSalary: Salary = { ...salary, id: generateId(), createdAt: new Date().toISOString() };
-      const salaries = [newSalary, ...state.salaries];
-      saveToStorage("salaries", salaries);
-      const log: ActivityLog = { id: generateId(), timestamp: new Date().toISOString(), action: "Salary Added", details: `৳${salary.amount} - ${salary.senderName}`, type: "salary" };
-      const activityLogs = [log, ...state.activityLogs];
-      saveToStorage("activityLogs", activityLogs);
-      return { salaries, activityLogs };
-    }),
+    addSalary: (salary) => {
+      set((state) => {
+        const newSalary: Salary = { ...salary, id: generateId(), createdAt: new Date().toISOString() };
+        const salaries = [newSalary, ...state.salaries];
+        saveToStorage("salaries", salaries);
+        const log: ActivityLog = { id: generateId(), timestamp: new Date().toISOString(), action: "Salary Added", details: `৳${salary.amount} - ${salary.senderName}`, type: "salary" };
+        const activityLogs = [log, ...state.activityLogs];
+        saveToStorage("activityLogs", activityLogs);
+        return { salaries, activityLogs };
+      });
+      scheduleSyncData(get());
+    },
 
-    updateSalary: (id, data) => set((state) => {
-      const salaries = state.salaries.map((s) => (s.id === id ? { ...s, ...data } : s));
-      saveToStorage("salaries", salaries);
-      return { salaries };
-    }),
+    updateSalary: (id, data) => {
+      set((state) => {
+        const salaries = state.salaries.map((s) => (s.id === id ? { ...s, ...data } : s));
+        saveToStorage("salaries", salaries);
+        return { salaries };
+      });
+      scheduleSyncData(get());
+    },
 
-    deleteSalary: (id) => set((state) => {
-      const salaries = state.salaries.filter((s) => s.id !== id);
-      saveToStorage("salaries", salaries);
-      return { salaries };
-    }),
+    deleteSalary: (id) => {
+      set((state) => {
+        const salaries = state.salaries.filter((s) => s.id !== id);
+        saveToStorage("salaries", salaries);
+        return { salaries };
+      });
+      scheduleSyncData(get());
+    },
 
-    addExpense: (expense) => set((state) => {
-      const newExpense: Expense = { ...expense, id: generateId(), createdAt: new Date().toISOString() };
-      const expenses = [newExpense, ...state.expenses];
-      saveToStorage("expenses", expenses);
-      const log: ActivityLog = { id: generateId(), timestamp: new Date().toISOString(), action: "Expense Added", details: `৳${expense.amount} - ${expense.title}`, type: "expense" };
-      const activityLogs = [log, ...state.activityLogs];
-      saveToStorage("activityLogs", activityLogs);
-      if (expense.amount >= (state.user.telegram.largeExpenseThreshold || 10000)) {
-        const alert: ActivityLog = { id: generateId(), timestamp: new Date().toISOString(), action: "Large Expense Alert", details: `৳${expense.amount} - ${expense.title}`, type: "telegram" };
-        return { expenses, activityLogs: [alert, ...activityLogs] };
-      }
-      return { expenses, activityLogs };
-    }),
+    addExpense: (expense) => {
+      set((state) => {
+        const newExpense: Expense = { ...expense, id: generateId(), createdAt: new Date().toISOString() };
+        const expenses = [newExpense, ...state.expenses];
+        saveToStorage("expenses", expenses);
+        const log: ActivityLog = { id: generateId(), timestamp: new Date().toISOString(), action: "Expense Added", details: `৳${expense.amount} - ${expense.title}`, type: "expense" };
+        const activityLogs = [log, ...state.activityLogs];
+        saveToStorage("activityLogs", activityLogs);
+        if (expense.amount >= (state.user.telegram.largeExpenseThreshold || 10000)) {
+          const alert: ActivityLog = { id: generateId(), timestamp: new Date().toISOString(), action: "Large Expense Alert", details: `৳${expense.amount} - ${expense.title}`, type: "telegram" };
+          return { expenses, activityLogs: [alert, ...activityLogs] };
+        }
+        return { expenses, activityLogs };
+      });
+      scheduleSyncData(get());
+    },
 
-    updateExpense: (id, data) => set((state) => {
-      const expenses = state.expenses.map((e) => (e.id === id ? { ...e, ...data } : e));
-      saveToStorage("expenses", expenses);
-      return { expenses };
-    }),
+    updateExpense: (id, data) => {
+      set((state) => {
+        const expenses = state.expenses.map((e) => (e.id === id ? { ...e, ...data } : e));
+        saveToStorage("expenses", expenses);
+        return { expenses };
+      });
+      scheduleSyncData(get());
+    },
 
-    deleteExpense: (id) => set((state) => {
-      const expenses = state.expenses.filter((e) => e.id !== id);
-      saveToStorage("expenses", expenses);
-      return { expenses };
-    }),
+    deleteExpense: (id) => {
+      set((state) => {
+        const expenses = state.expenses.filter((e) => e.id !== id);
+        saveToStorage("expenses", expenses);
+        return { expenses };
+      });
+      scheduleSyncData(get());
+    },
 
-    addGoal: (goal) => set((state) => {
-      const newGoal: SavingsGoal = { ...goal, id: generateId(), createdAt: new Date().toISOString() };
-      const goals = [newGoal, ...state.goals];
-      saveToStorage("goals", goals);
-      return { goals };
-    }),
+    addGoal: (goal) => {
+      set((state) => {
+        const newGoal: SavingsGoal = { ...goal, id: generateId(), createdAt: new Date().toISOString() };
+        const goals = [newGoal, ...state.goals];
+        saveToStorage("goals", goals);
+        return { goals };
+      });
+      scheduleSyncData(get());
+    },
 
-    updateGoal: (id, data) => set((state) => {
-      const goals = state.goals.map((g) => (g.id === id ? { ...g, ...data } : g));
-      saveToStorage("goals", goals);
-      return { goals };
-    }),
+    updateGoal: (id, data) => {
+      set((state) => {
+        const goals = state.goals.map((g) => (g.id === id ? { ...g, ...data } : g));
+        saveToStorage("goals", goals);
+        return { goals };
+      });
+      scheduleSyncData(get());
+    },
 
-    deleteGoal: (id) => set((state) => {
-      const goals = state.goals.filter((g) => g.id !== id);
-      saveToStorage("goals", goals);
-      return { goals };
-    }),
+    deleteGoal: (id) => {
+      set((state) => {
+        const goals = state.goals.filter((g) => g.id !== id);
+        saveToStorage("goals", goals);
+        return { goals };
+      });
+      scheduleSyncData(get());
+    },
 
-    addNote: (note) => set((state) => {
-      const now = new Date().toISOString();
-      const newNote: Note = { ...note, id: generateId(), createdAt: now, updatedAt: now };
-      const notes = [newNote, ...state.notes];
-      saveToStorage("notes", notes);
-      return { notes };
-    }),
+    addNote: (note) => {
+      set((state) => {
+        const now = new Date().toISOString();
+        const newNote: Note = { ...note, id: generateId(), createdAt: now, updatedAt: now };
+        const notes = [newNote, ...state.notes];
+        saveToStorage("notes", notes);
+        return { notes };
+      });
+      scheduleSyncData(get());
+    },
 
-    updateNote: (id, data) => set((state) => {
-      const notes = state.notes.map((n) => n.id === id ? { ...n, ...data, updatedAt: new Date().toISOString() } : n);
-      saveToStorage("notes", notes);
-      return { notes };
-    }),
+    updateNote: (id, data) => {
+      set((state) => {
+        const notes = state.notes.map((n) => n.id === id ? { ...n, ...data, updatedAt: new Date().toISOString() } : n);
+        saveToStorage("notes", notes);
+        return { notes };
+      });
+      scheduleSyncData(get());
+    },
 
-    deleteNote: (id) => set((state) => {
-      const notes = state.notes.filter((n) => n.id !== id);
-      saveToStorage("notes", notes);
-      return { notes };
-    }),
+    deleteNote: (id) => {
+      set((state) => {
+        const notes = state.notes.filter((n) => n.id !== id);
+        saveToStorage("notes", notes);
+        return { notes };
+      });
+      scheduleSyncData(get());
+    },
 
     addActivityLog: (log) => set((state) => {
       const newLog: ActivityLog = { ...log, id: generateId(), timestamp: new Date().toISOString() };

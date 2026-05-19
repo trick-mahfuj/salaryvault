@@ -3,13 +3,22 @@
 export type SyncStatus = "idle" | "syncing" | "connected" | "error";
 
 export interface SyncPayload {
-  settings: Record<string, unknown>;
+  settings?: Record<string, unknown>;
+  data?: Record<string, unknown>;
   timestamp: string;
+}
+
+export interface FinancialData {
+  salaries: Record<string, unknown>[];
+  expenses: Record<string, unknown>[];
+  goals: Record<string, unknown>[];
+  notes: Record<string, unknown>[];
 }
 
 let syncStatusListeners: Array<(status: SyncStatus) => void> = [];
 let _currentStatus: SyncStatus = "idle";
 let _lastSynced: string | null = null;
+let _debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function getSyncStatus(): SyncStatus {
   return _currentStatus;
@@ -44,13 +53,17 @@ export async function syncPull(): Promise<SyncPayload | null> {
       return null;
     }
     const data = await response.json();
-    if (!data || !data.settings) {
+    if (!data || (!data.settings && !data.data)) {
       notifyStatus("connected");
       return null;
     }
-    _lastSynced = data.timestamp || data.settings.__syncedAt || new Date().toISOString();
+    _lastSynced = data.timestamp || data.__syncedAt || new Date().toISOString();
     notifyStatus("connected");
-    return { settings: data.settings, timestamp: _lastSynced! };
+    return {
+      settings: data.settings || undefined,
+      data: data.data || undefined,
+      timestamp: _lastSynced!,
+    };
   } catch {
     notifyStatus("error");
     return null;
@@ -60,11 +73,14 @@ export async function syncPull(): Promise<SyncPayload | null> {
 export async function syncPush(payload: SyncPayload): Promise<boolean> {
   try {
     notifyStatus("syncing");
+    const body: Record<string, unknown> = { timestamp: payload.timestamp };
+    if (payload.settings) body.settings = payload.settings;
+    if (payload.data) body.data = payload.data;
     const response = await fetch("/api/sync", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settings: payload.settings, timestamp: payload.timestamp }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       notifyStatus("error");
@@ -76,6 +92,41 @@ export async function syncPush(payload: SyncPayload): Promise<boolean> {
   } catch {
     notifyStatus("error");
     return false;
+  }
+}
+
+// Extract financial data from store state for sync
+export function extractFinancialData(state: {
+  salaries: unknown[];
+  expenses: unknown[];
+  goals: unknown[];
+  notes: unknown[];
+}): FinancialData {
+  return {
+    salaries: state.salaries as Record<string, unknown>[],
+    expenses: state.expenses as Record<string, unknown>[],
+    goals: state.goals as Record<string, unknown>[],
+    notes: state.notes as Record<string, unknown>[],
+  };
+}
+
+// Debounced sync for financial data — batches rapid mutations
+export function scheduleSyncData(
+  state: { salaries: unknown[]; expenses: unknown[]; goals: unknown[]; notes: unknown[] },
+  delayMs = 2000
+): void {
+  if (_debounceTimer) clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(() => {
+    _debounceTimer = null;
+    const financial = extractFinancialData(state);
+    syncPush({ data: financial as unknown as Record<string, unknown>, timestamp: new Date().toISOString() });
+  }, delayMs);
+}
+
+export function cancelPendingSync(): void {
+  if (_debounceTimer) {
+    clearTimeout(_debounceTimer);
+    _debounceTimer = null;
   }
 }
 

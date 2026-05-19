@@ -7,12 +7,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const settings = await loadSettingsFromServer();
-  if (!settings) {
-    return NextResponse.json({ settings: null, timestamp: null });
+  const stored = await loadSettingsFromServer();
+  if (!stored) {
+    return NextResponse.json({ settings: null, data: null, timestamp: null });
   }
 
-  return NextResponse.json({ settings, timestamp: settings.__syncedAt || null });
+  return NextResponse.json({
+    settings: stored.settings || null,
+    data: stored.data || null,
+    timestamp: stored.__syncedAt || null,
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -23,16 +27,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    if (!body.settings || typeof body.settings !== "object") {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    if (!body.settings && !body.data) {
+      return NextResponse.json({ error: "Invalid payload — need settings or data" }, { status: 400 });
     }
 
-    const settingsData = body.settings as Record<string, unknown>;
-    if (body.timestamp) {
-      settingsData.__clientTimestamp = body.timestamp;
+    // Merge incoming payload with existing stored data
+    const existing = (await loadSettingsFromServer()) || {};
+
+    const merged: Record<string, unknown> = {
+      ...existing,
+      __syncedAt: new Date().toISOString(),
+    };
+
+    if (body.settings) {
+      merged.settings = { ...((existing as Record<string, unknown>).settings as Record<string, unknown> || {}), ...(body.settings as Record<string, unknown>) };
+      if (body.timestamp) (merged.settings as Record<string, unknown>).__clientTimestamp = body.timestamp;
     }
 
-    await storeSettingsOnServer(settingsData);
+    if (body.data) {
+      merged.data = { ...((existing as Record<string, unknown>).data as Record<string, unknown> || {}), ...(body.data as Record<string, unknown>) };
+    }
+
+    await storeSettingsOnServer(merged);
     return NextResponse.json({ success: true, syncedAt: new Date().toISOString() });
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });

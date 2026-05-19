@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useState, useRef } from "react";
 import { syncPull, syncPush, getSyncStatus, getLastSynced, onSyncStatusChange, extractSyncSettings } from "@/lib/clientSync";
-import type { SyncStatus } from "@/lib/clientSync";
+import type { SyncStatus, FinancialData } from "@/lib/clientSync";
 import { useStore } from "@/store/useStore";
 
 export function useCrossBrowserSync() {
@@ -52,6 +52,27 @@ export function useCrossBrowserSync() {
           if (remote.settings.lockoutDuration !== undefined) merged.security.lockoutDurationMinutes = remote.settings.lockoutDuration as number;
         }
         updateUser(merged);
+      }
+
+      // Merge financial data from server if available
+      if (remote && remote.data) {
+        const financial = remote.data as unknown as FinancialData;
+        const patch: Record<string, unknown> = {};
+        if (financial.salaries && Array.isArray(financial.salaries) && financial.salaries.length > 0) {
+          patch.salaries = financial.salaries;
+        }
+        if (financial.expenses && Array.isArray(financial.expenses) && financial.expenses.length > 0) {
+          patch.expenses = financial.expenses;
+        }
+        if (financial.goals && Array.isArray(financial.goals) && financial.goals.length > 0) {
+          patch.goals = financial.goals;
+        }
+        if (financial.notes && Array.isArray(financial.notes) && financial.notes.length > 0) {
+          patch.notes = financial.notes;
+        }
+        if (Object.keys(patch).length > 0) {
+          useStore.setState(patch);
+        }
       }
     };
 
